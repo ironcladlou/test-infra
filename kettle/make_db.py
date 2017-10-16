@@ -114,15 +114,22 @@ class GCSClient(object):
     def _ls_junit_paths(self, build_dir):
         """Lists the paths of JUnit XML files for a build."""
         url = '%sartifacts/' % (build_dir)
-        for path in self.ls(url):
-            if re.match(r'.*/junit.*\.xml$', path):
+        patterns = [
+            r'.*/junit.*\.xml$',
+            r'.*/oscmd_report.*\.xml$',
+            r'.*/gotest_report.*\.xml$'
+        ]
+        for path in self.ls(url, delim=False):
+            if any(re.match(pattern, path) for pattern in patterns):
+                print('found junit file at %s' % path)
                 yield path
 
     def get_junits_from_build(self, build_dir):
         """Generates all tests for a build."""
         files = {}
-        assert not build_dir.endswith('/')
-        for junit_path in self._ls_junit_paths(build_dir + '/'):
+        if not build_dir.endswith('/'):
+            build_dir += '/'
+        for junit_path in self._ls_junit_paths(build_dir):
             files[junit_path] = self.get(junit_path)
         return files
 
@@ -149,7 +156,11 @@ class GCSClient(object):
 
     def get_started_finished(self, job, build):
         if self.metadata.get('pr'):
-            build_dir = self.get('%s/directory/%s/%s.txt' % (self.jobs_dir, job, build)).strip()
+            obj = '%sdirectory/%s/%s.txt' % (self.jobs_dir, job, build)
+            build_dir = self.get(obj)
+            if not build_dir:
+                raise Exception("couldn't get object: %s" % obj)
+            build_dir = build_dir.strip()
         else:
             build_dir = '%s%s/%s' % (self.jobs_dir, job, build)
         started = self.get('%s/started.json' % build_dir, as_json=True)
@@ -158,16 +169,28 @@ class GCSClient(object):
 
     def get_builds(self, builds_have):
         """Generates all (job, build) pairs ever."""
+        exclude = self.metadata.get('exclude', [])
+        include = self.metadata.get('include', [])
         if self.metadata.get('pr'):
-            files = self.ls(self.jobs_dir + '/directory/', delim=False)
+            files = self.ls(self.jobs_dir + 'directory/', delim=False)
             for fname in files:
+                # if exclusions and any(fname.find(d) >= 0 for d in exclusions):
+                #     continue
                 if fname.endswith('.txt') and 'latest-build' not in fname:
                     job, build = fname[:-4].split('/')[-2:]
+                    if job in exclude:
+                        continue
+                    if len(include) > 0 and not job in include:
+                        continue
                     if (job, build) in builds_have:
                         continue
                     yield job, build
             return
         for job in self._get_jobs():
+            if job in exclude:
+                continue
+            if len(include) > 0 and not job in include:
+                continue
             if job in ('pr-e2e-gce', 'maintenance-ci-testgrid-config-upload'):
                 continue  # garbage.
             have = 0
@@ -290,7 +313,6 @@ def download_junit(db, threads, client_class):
         print('%d/%d' % (n, len(builds_to_grab)),
               build_path, len(junits), len(''.join(junits.values())))
         junits = {k: remove_system_out(v) for k, v in junits.iteritems()}
-
         db.insert_build_junits(build_id, junits)
         if n % 100 == 0:
             db.commit()
@@ -302,8 +324,8 @@ def download_junit(db, threads, client_class):
 
 def main(db, jobs_dirs, threads, get_junit, client_class=GCSClient):
     """Collect test info in matching jobs."""
-    get_builds(db, 'gs://kubernetes-jenkins/pr-logs', {'pr': True},
-               threads, client_class)
+    #get_builds(db, 'gs://kubernetes-jenkins/pr-logs', {'pr': True},
+    #           threads, client_class)
     for bucket, metadata in jobs_dirs.iteritems():
         if not bucket.endswith('/'):
             bucket += '/'

@@ -17,7 +17,6 @@
 
 import os
 
-
 def call(cmd):
     print '+', cmd
     status = os.system(cmd)
@@ -26,10 +25,13 @@ def call(cmd):
 
 
 def main():
-    call('time python make_db.py --buckets ../buckets.yaml --junit --threads 32')
+    # k8s-gubernator:build
+    dataset = "openshift-gce-devel:build"
+    
+    #call('time python make_db.py --buckets ../buckets.yaml --junit --threads 32')
 
-    bq_cmd = 'bq load --source_format=NEWLINE_DELIMITED_JSON --max_bad_records=1000'
-    mj_cmd = 'pypy make_json.py'
+    bq_cmd = 'bq load --source_format=NEWLINE_DELIMITED_JSON --max_bad_records=1000 --replace'
+    mj_cmd = 'pypy make_json.py --reset-emitted'
 
     mj_ext = ''
     bq_ext = ''
@@ -41,19 +43,20 @@ def main():
         mj_ext = ' --reset-emitted'
 
     call(mj_cmd + mj_ext + ' --days 1 | pv | gzip > build_day.json.gz')
-    call(bq_cmd + bq_ext + ' k8s-gubernator:build.day build_day.json.gz schema.json')
+    call(bq_cmd + bq_ext + ' %s.day build_day.json.gz schema.json' % dataset)
 
     call(mj_cmd + mj_ext + ' --days 7 | pv | gzip > build_week.json.gz')
-    call(bq_cmd + bq_ext + ' k8s-gubernator:build.week build_week.json.gz schema.json')
+    call(bq_cmd + bq_ext + ' %s.week build_week.json.gz schema.json' % dataset)
 
     call(mj_cmd + ' | pv | gzip > build_all.json.gz')
-    call(bq_cmd + ' k8s-gubernator:build.all build_all.json.gz schema.json')
+    call(bq_cmd + ' %s.all build_all.json.gz schema.json' % dataset)
 
-    call('python stream.py --poll kubernetes-jenkins/gcs-changes/kettle '
-         ' --dataset k8s-gubernator:build --tables all:0 day:1 week:7 --stop_at=1')
+    #call('python stream.py --poll kubernetes-jenkins/gcs-changes/kettle '
+    #     ' --dataset k8s-gubernator:build --tables all:0 day:1 week:7 --stop_at=1')
 
 
 if __name__ == '__main__':
+    tz = 'America/New_York'
     os.chdir(os.path.dirname(__file__))
-    os.environ['TZ'] = 'America/Los_Angeles'
+    os.environ['TZ'] = tz
     main()

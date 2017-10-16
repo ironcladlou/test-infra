@@ -30,6 +30,7 @@ fi
 
 bq show <<< $'\n' > /dev/null  # create initial bq config
 
-while true; do
-  /kettle/update.py
-done
+# while true; do
+#   /kettle/update.py
+# done
+/kettle/update.py

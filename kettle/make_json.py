@@ -32,7 +32,7 @@ except ImportError:
 import model
 
 
-def parse_junit(xml):
+def parse_junit(path, xml):
     """Generate failed tests as a series of dicts. Ignore skipped tests."""
     # NOTE: this is modified from gubernator/view_build.py
     tree = ET.fromstring(xml)
@@ -52,31 +52,37 @@ def parse_junit(xml):
     # Knowing that a given build could have ran a test but didn't for some reason
     # isn't very interesting.
     if tree.tag == 'testsuite':
+        #logging.error('parsing testsuite for %s' % path)
         for child in tree:
             name = child.attrib['name']
             time = float(child.attrib['time'] or 0)
             failure_text = None
             for param in child.findall('failure'):
+                logger.error('found test failure for %s' % path)
                 failure_text = param.text
             skipped = child.findall('skipped')
             if skipped:
                 continue
             yield make_result(name, time, failure_text)
     elif tree.tag == 'testsuites':
+        #logging.error('parsing testsuites for %s' % path)
         for testsuite in tree:
             suite_name = testsuite.attrib['name']
+            #logging.error('found %s children for %s' % (len(testsuite.findall('testcase')), path))
             for child in testsuite.findall('testcase'):
                 name = '%s %s' % (suite_name, child.attrib['name'])
                 time = float(child.attrib['time'] or 0)
                 failure_text = None
                 for param in child.findall('failure'):
+                    logger.error('found test failure for %s' % path)
                     failure_text = param.text
                 skipped = child.findall('skipped')
                 if skipped:
+                    logging.error('skipping testsuites for %s' % path)
                     continue
                 yield make_result(name, time, failure_text)
     else:
-        logging.error('unable to find failures, unexpected tag %s', tree.tag)
+        logging.error('unable to find failures for %s, unexpected tag %s' % (path, tree.tag))
 
 
 # pypy compatibility hack
@@ -87,15 +93,15 @@ BUCKETS = json.loads(subprocess.check_output(
 
 def path_to_job_and_number(path):
     assert not path.endswith('/')
+    pr = False
     for bucket, meta in BUCKETS.iteritems():
         if path.startswith(bucket):
-            prefix = meta['prefix']
+            prefix = meta.get('prefix', '')
+            pr = meta.get('pr', False)
             break
     else:
-        if path.startswith('gs://kubernetes-jenkins/pr-logs'):
+        if pr:
             prefix = 'pr:'
-        else:
-            raise ValueError('unknown build path')
     build = os.path.basename(path)
     job = prefix + os.path.basename(os.path.dirname(path))
     try:
@@ -107,7 +113,7 @@ def path_to_job_and_number(path):
 def row_for_build(path, started, finished, results):
     tests = []
     for result in results:
-        for test in parse_junit(result):
+        for test in parse_junit(path, result):
             if '#' in test['name'] and not test.get('failed'):
                 continue  # skip successful repeated tests
             tests.append(test)
@@ -188,6 +194,7 @@ def make_rows(db, builds):
     for rowid, path, started, finished in builds:
         try:
             results = db.test_results_for_build(path)
+            #logging.error('found %s results for %s' % (len(results), path))
             yield rowid, row_for_build(path, started, finished, results)
         except IOError:
             return

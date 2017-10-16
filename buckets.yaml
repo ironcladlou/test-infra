@@ -7,24 +7,57 @@
 #     bucket are numbered sequentially. This is used for an optimization in the
 #     test-history collection phase, and defaults to true.
 
-gs://kubernetes-jenkins/logs/:
-  contact: "fejta"
+gs://origin-ci-test/logs/:
+  contact: "skuznets"
   prefix: ""
-gs://rktnetes-jenkins/logs/:
-  contact: "euank"
-  prefix: "rktnetes:"
-gs://kopeio-kubernetes-e2e/logs/:
-  contact: "justinsb"
-  prefix: "kopeio:"
-  sequential: false
-gs://canonical-kubernetes-tests/logs/:
-  contact: "chuckbutler"
-  prefix: "juju:"
-  sequential: false
-gs://canonical-kubernetes-tests/logs-gke/:
-  contact: "vorlonofportland"
-  prefix: "ubuntu:"
-  sequential: false
-gs://kubernetes-multiarch-e2e-results/logs/:
-  contact: "luxas"
-  prefix: "luxas:"
+  sequential: true
+  include:
+  - origin-ci-ut-origin
+  - test_pull_request_origin_integration
+  exclude:
+  - test_pull_request_origin_web_console
+
+gs://origin-ci-test/pr-logs/:
+  sequential: true
+  pr: true
+  include:
+  - origin-ci-ut-origin
+  - test_pull_request_origin_integration
+  exclude:
+  - test_pull_request_crio_ami_fedora
+  - test_pull_request_crio_ami_rhel
+  - test_pull_request_crio_e2e_fedora
+  - test_pull_request_crio_e2e_rhel
+  - test_pull_request_crio_integration_fedora
+  - test_pull_request_crio_integration_rhel
+  - test_pull_request_openshift_ansible_extended_conformance_install
+  - test_pull_request_openshift_ansible_extended_conformance_install_containerized
+  - test_pull_request_openshift_ansible_extended_conformance_install_system_containers
+  - test_pull_request_openshift_ansible_extended_conformance_install_update
+  - test_pull_request_openshift_ansible_logging
+  - test_pull_request_openshift_ansible_tox
+  - test_pull_request_origin_aggregated_logging_ansible
+  - test_pull_request_origin_aggregated_logging_ansible_json_file
+  - test_pull_request_origin_web_console
+
+# gs://kubernetes-jenkins/logs/:
+#   contact: "fejta"
+#   prefix: ""
+# gs://rktnetes-jenkins/logs/:
+#   contact: "euank"
+#   prefix: "rktnetes:"
+# gs://kopeio-kubernetes-e2e/logs/:
+#   contact: "justinsb"
+#   prefix: "kopeio:"
+#   sequential: false
+# gs://canonical-kubernetes-tests/logs/:
+#   contact: "chuckbutler"
+#   prefix: "juju:"
+#   sequential: false
+# gs://canonical-kubernetes-tests/logs-gke/:
+#   contact: "vorlonofportland"
+#   prefix: "ubuntu:"
+#   sequential: false
+# gs://kubernetes-multiarch-e2e-results/logs/:
+#   contact: "luxas"
+#   prefix: "luxas:"

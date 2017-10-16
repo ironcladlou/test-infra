@@ -149,9 +149,7 @@ class Database(object):
         Return a list of file data under the given path. Intended for JUnit artifacts.
         """
         results = []
-        for dataz, in self.db.execute(
-                'select data from file where path between ? and ?',
-                (path, path + '\x7F')):
+        for dataz, in self.db.execute("select data from file where path like '%s/%%'" % path):
             data = zlib.decompress(dataz)
             if data:
                 results.append(data)
